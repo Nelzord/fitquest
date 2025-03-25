@@ -32,6 +32,8 @@ const mockUserData = {
     core: 50,
     cardio: 30,
   },
+  // Streak count
+  streakCount: 10,
 }
 
 const avatarColors = [

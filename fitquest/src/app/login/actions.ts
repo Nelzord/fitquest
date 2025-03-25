@@ -25,11 +25,13 @@ export async function login(formData: FormData) {
     const sessionStr = JSON.stringify({
       email: data.user.email,
       id: data.user.id,
-      session_id: data.session.id,
+      session_token: data.session.access_token,
     })
 
     // Set a cookie with the user info that we can access immediately
-    cookieStore.set("user_session", sessionStr, {
+    ;(await
+      // Set a cookie with the user info that we can access immediately
+      cookieStore).set("user_session", sessionStr, {
       path: "/",
       maxAge: 60 * 60 * 24 * 7, // 1 week
       sameSite: "lax",
@@ -77,7 +79,9 @@ export async function logout() {
   const supabase = createClient()
 
   // Clear our custom session cookie
-  cookieStore.set("user_session", "", {
+  ;(await
+    // Clear our custom session cookie
+    cookieStore).set("user_session", "", {
     path: "/",
     maxAge: 0,
     sameSite: "lax",
