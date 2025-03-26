@@ -62,6 +62,18 @@ export async function initializeUser(userId: string, email: string): Promise<voi
   }
 }
 
+
+type DbExercise = {
+  id: string
+  name: string
+  muscle_group: string
+  type: string
+  description: string
+  difficulty: string
+  xp_per_set: number
+  gold_per_set: number
+}
+
 // Function to synchronize exercises between frontend and database
 export async function syncExercises(): Promise<Exercise[]> {
   const supabase = createClient()
@@ -76,7 +88,7 @@ export async function syncExercises(): Promise<Exercise[]> {
     }
 
     // Convert database exercises to frontend format
-    const exercises: Exercise[] = dbExercises.map((dbEx) => ({
+    const exercises: Exercise[] = dbExercises.map((dbEx: DbExercise) => ({
       id: dbEx.id,
       name: dbEx.name,
       muscleGroup: dbEx.muscle_group,
@@ -148,7 +160,7 @@ export async function getExercises(): Promise<Exercise[]> {
     }
 
     // Convert database exercises to frontend format
-    return dbExercises.map((dbEx) => ({
+    return dbExercises.map((dbEx: DbExercise) => ({
       id: dbEx.id,
       name: dbEx.name,
       muscleGroup: dbEx.muscle_group,
@@ -247,7 +259,7 @@ export async function saveWorkout(
       }
 
       // Try to find the matching exercise in the database by name
-      const matchingExercise = dbExercises.find((e) => e.name.toLowerCase() === frontendExercise.name.toLowerCase())
+      const matchingExercise = dbExercises.find((e: DbExercise) => e.name.toLowerCase() === frontendExercise.name.toLowerCase())
 
       if (!matchingExercise) {
         console.error(`Could not find matching exercise in database for: ${frontendExercise.name}`)
@@ -431,8 +443,21 @@ export async function getLeaderboardData(): Promise<any[]> {
       return []
     }
 
+    type DbUser = {
+      id: string
+      email: string
+      level: number
+      xp: number
+      total_workouts: number
+      total_duration: number
+      streak_count: number
+      last_workout_date: string | null
+      avatar_color?: string | null
+      avatar_accessory?: string | null
+    }
+
     // Format the data for the leaderboard
-    return leaderboardData.map((user) => ({
+    return leaderboardData.map((user: DbUser) => ({
       id: user.id,
       name: user.email.split("@")[0], // Use the part before @ as name
       email: user.email,
