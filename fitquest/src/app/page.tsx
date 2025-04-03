@@ -67,7 +67,7 @@ export default function Home() {
     )
   }
 
-  router.push("/dashboard")
+
   return null
 }
 
