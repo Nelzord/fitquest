@@ -1,40 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { calculateXpToNextLevel } from "@/lib/utils"
 import { Trophy, Zap, Coins, Clock } from "lucide-react"
 import { RadarChart } from "@/components/radar-chart"
+import { createClient } from "@/utils/supabase/client"
+import type { User as UserType } from "@/types"
 
-// Mock user data with additional fields
-const mockUserData = {
-  id: "1",
-  email: "user@example.com",
-  level: 5,
-  xp: 450,
-  gold: 230,
-  totalWorkouts: 24,
-  totalDuration: 1260, // 21 hours
-  createdAt: new Date().toISOString(),
-  // Avatar customization
-  avatarColor: "blue",
-  avatarAccessory: "headband",
-  avatarOutfit: "tank-top",
-  // Muscle group stats
-  muscleGroups: {
-    chest: 65,
-    back: 80,
-    legs: 45,
-    shoulders: 60,
-    arms: 75,
-    core: 50,
-    cardio: 30,
-  },
-  // Streak count
-  streakCount: 10,
-}
 
 const avatarColors = [
   { value: "blue", label: "Blue" },
@@ -60,13 +35,80 @@ const avatarOutfits = [
   { value: "sleeveless", label: "Sleeveless" },
 ]
 
-export function AvatarTab({ user }: { user: any }) {
-  const [userData, setUserData] = useState(mockUserData)
+interface AvatarTabProps {
+  user: UserType | null
+}
+
+export function AvatarTab({ user }: AvatarTabProps) {
+  const [userData, setUserData] = useState<any>(null)
   const [avatarCustomization, setAvatarCustomization] = useState({
-    color: mockUserData.avatarColor,
-    accessory: mockUserData.avatarAccessory,
-    outfit: mockUserData.avatarOutfit,
+    color: "",
+    accessory: "",
+    outfit: "",
   })
+  const [isLoading, setIsLoading] = useState(true)
+  const [muscleStats, setMuscleStats] = useState<any>(null)
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const supabase = createClient()
+
+        // Get the authenticated user
+        const { data: authData, error: authError } = await supabase.auth.getUser()
+        if (authError || !authData.user) {
+          console.error("User not authenticated:", authError)
+          return
+        }
+
+        // Fetch user data from the database
+        const { data: userData, error: userError } = await supabase
+          .from("users") // Replace "users" with your actual table name
+          .select("*")
+          .eq("id", authData.user.id)
+          .single()
+
+        if (userError) {
+          console.error("Error fetching user data:", userError)
+          return
+        }
+
+        // Fetch muscle stats from the database
+        const { data: muscleStats, error: muscleStatsError } = await supabase
+          .from("user_muscle_stats")
+          .select("*")
+          .eq("user_id", authData.user.id)
+          .single()
+
+        if (muscleStatsError) {
+          console.error("Error fetching muscle stats:", muscleStatsError)
+          return
+        }
+
+        setUserData(userData)
+        setMuscleStats(muscleStats)
+        setAvatarCustomization({
+          color: userData.avatarColor || "blue",
+          accessory: userData.avatarAccessory || "none",
+          outfit: userData.avatarOutfit || "tank-top",
+        })
+      } catch (error) {
+        console.error("Error fetching user data:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchUserData()
+  }, [])
+
+  if (isLoading) {
+    return <p>Loading...</p>
+  }
+
+  if (!userData) {
+    return <p>No user data found.</p>
+  }
 
   const xpToNextLevel = calculateXpToNextLevel(userData)
   const progress = 100 - (xpToNextLevel / 100) * 100
@@ -77,34 +119,28 @@ export function AvatarTab({ user }: { user: any }) {
       [type]: value,
     }))
 
-    // In a real app, you would save this to the database
-    setUserData((prev) => ({
-      ...prev,
-      [`avatar${type.charAt(0).toUpperCase() + type.slice(1)}`]: value,
-    }))
+    // Update the database with the new avatar customization
+    const updateAvatarCustomization = async () => {
+      try {
+        const supabase = createClient()
+        const { error } = await supabase
+          .from("users") // Replace "users" with your actual table name
+          .update({
+            [`avatar${type.charAt(0).toUpperCase() + type.slice(1)}`]: value,
+          })
+          .eq("id", userData.id)
+
+        if (error) {
+          console.error("Error updating avatar customization:", error)
+        }
+      } catch (error) {
+        console.error("Error updating avatar customization:", error)
+      }
+    }
+
+    updateAvatarCustomization()
   }
 
-  // Prepare data for radar chart
-  const radarData = {
-    labels: ["Chest", "Back", "Legs", "Shoulders", "Arms", "Core", "Cardio"],
-    datasets: [
-      {
-        label: "Muscle Groups",
-        data: [
-          userData.muscleGroups.chest,
-          userData.muscleGroups.back,
-          userData.muscleGroups.legs,
-          userData.muscleGroups.shoulders,
-          userData.muscleGroups.arms,
-          userData.muscleGroups.core,
-          userData.muscleGroups.cardio,
-        ],
-        backgroundColor: "rgba(75, 192, 192, 0.2)",
-        borderColor: "rgba(75, 192, 192, 1)",
-        borderWidth: 2,
-      },
-    ],
-  }
 
   return (
     <div className="space-y-6">
@@ -150,7 +186,7 @@ export function AvatarTab({ user }: { user: any }) {
                   <Clock className="h-5 w-5 text-primary" />
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">Hours</p>
-                <p className="font-medium">{Math.floor(userData.totalDuration / 60)}</p>
+                <p className="font-medium">{Math.floor(60)}</p>
               </div>
             </div>
           </CardContent>
@@ -171,7 +207,7 @@ export function AvatarTab({ user }: { user: any }) {
                   <div className="relative">
                     {/* Simple avatar representation */}
                     <div className="h-24 w-24 rounded-full bg-gray-300 flex items-center justify-center">
-                      <span className="text-2xl font-bold">{user?.email?.charAt(0).toUpperCase()}</span>
+                      <span className="text-2xl font-bold">{userData?.email?.charAt(0).toUpperCase()}</span>
                     </div>
 
                     {/* Accessory */}
@@ -265,41 +301,30 @@ export function AvatarTab({ user }: { user: any }) {
           <CardTitle>Muscle Group Balance</CardTitle>
           <CardDescription>Visualize your training focus</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="h-80">
-            <RadarChart data={radarData} />
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 text-sm">
-            <div className="flex items-center">
-              <div className="h-3 w-3 rounded-full bg-emerald-500 mr-2"></div>
-              <span>Chest: {userData.muscleGroups.chest}%</span>
-            </div>
-            <div className="flex items-center">
-              <div className="h-3 w-3 rounded-full bg-emerald-500 mr-2"></div>
-              <span>Back: {userData.muscleGroups.back}%</span>
-            </div>
-            <div className="flex items-center">
-              <div className="h-3 w-3 rounded-full bg-emerald-500 mr-2"></div>
-              <span>Legs: {userData.muscleGroups.legs}%</span>
-            </div>
-            <div className="flex items-center">
-              <div className="h-3 w-3 rounded-full bg-emerald-500 mr-2"></div>
-              <span>Shoulders: {userData.muscleGroups.shoulders}%</span>
-            </div>
-            <div className="flex items-center">
-              <div className="h-3 w-3 rounded-full bg-emerald-500 mr-2"></div>
-              <span>Arms: {userData.muscleGroups.arms}%</span>
-            </div>
-            <div className="flex items-center">
-              <div className="h-3 w-3 rounded-full bg-emerald-500 mr-2"></div>
-              <span>Core: {userData.muscleGroups.core}%</span>
-            </div>
-            <div className="flex items-center">
-              <div className="h-3 w-3 rounded-full bg-emerald-500 mr-2"></div>
-              <span>Cardio: {userData.muscleGroups.cardio}%</span>
-            </div>
-          </div>
-        </CardContent>
+        {<div className="h-80">
+              <RadarChart
+                data={{
+                  labels: ["Chest", "Back", "Legs", "Shoulders", "Arms", "Core", "Cardio"],
+                  datasets: [
+                    {
+                      label: "Muscle Groups",
+                      data: [
+                        muscleStats.chest,
+                        muscleStats.back,
+                        muscleStats.legs,
+                        muscleStats.shoulders,
+                        muscleStats.arms,
+                        muscleStats.core,
+                        muscleStats.cardio,
+                      ],
+                      backgroundColor: "rgba(75, 192, 192, 0.2)",
+                      borderColor: "rgba(75, 192, 192, 1)",
+                      borderWidth: 2,
+                    },
+                  ],
+                }}
+              />
+            </div>}
       </Card>
     </div>
   )

@@ -3,25 +3,83 @@ import type { User, Workout, WorkoutExercise, Exercise } from "@/types"
 import { exercises as frontendExercises } from "@/data/exercises"
 
 export async function getUserProfile(): Promise<User | null> {
-  const supabase = createClient()
+  const supabase = createClient();
 
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await supabase.auth.getUser();
 
   if (!user) {
-    console.warn("No user found in session.")
-    return null
+    console.warn("No user found in session.");
+    return null;
   }
 
-  const { data, error } = await supabase.from("users").select("*").eq("id", user.id).single()
+  // Fetch the user profile from the "users" table
+  const { data: userProfile, error: userError } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", user.id)
+    .single();
 
-  if (error) {
-    console.error("Error fetching user profile:", error)
-    return null
+  if (userError) {
+    console.error("Error fetching user profile:", userError);
+    return null;
   }
 
-  return data as User
+  // Check if the user has an entry in the "user_muscle_stats" table
+  const { data: muscleStats, error: muscleStatsError } = await supabase
+    .from("user_muscle_stats")
+    .select("*")
+    .eq("user_id", user.id)
+    .single();
+
+  if (muscleStatsError && muscleStatsError.code !== "PGRST116") {
+    console.error("Error fetching user muscle stats:", muscleStatsError);
+    return null;
+  }
+
+  // If no muscle stats exist, initialize them
+  if (!muscleStats) {
+    console.log("Initializing user muscle stats...");
+    const { error: createMuscleStatsError } = await supabase.from("user_muscle_stats").insert({
+      user_id: user.id,
+      chest: 0,
+      back: 0,
+      legs: 0,
+      shoulders: 0,
+      arms: 0,
+      core: 0,
+      cardio: 0,
+    });
+
+    if (createMuscleStatsError) {
+      console.error("Error initializing user muscle stats:", createMuscleStatsError);
+      return null;
+    }
+
+    // Fetch the newly created muscle stats
+    const { data: newMuscleStats, error: newMuscleStatsError } = await supabase
+      .from("user_muscle_stats")
+      .select("*")
+      .eq("user_id", user.id)
+      .single();
+
+    if (newMuscleStatsError) {
+      console.error("Error fetching newly created muscle stats:", newMuscleStatsError);
+      return null;
+    }
+
+    return {
+      ...userProfile,
+      muscleGroups: newMuscleStats,
+    } as User;
+  }
+
+  // Return the user profile with muscle stats
+  return {
+    ...userProfile,
+    muscleGroups: muscleStats,
+  } as User;
 }
 
 export async function initializeUser(userId: string, email: string): Promise<void> {
@@ -55,6 +113,37 @@ export async function initializeUser(userId: string, email: string): Promise<voi
 
       if (createUserError) {
         console.error("Error creating user:", createUserError)
+      }
+    }
+
+    // Check if the user has an entry in the "user_muscle_stats" table
+    const { data: existingMuscleStats, error: muscleStatsCheckError } = await supabase
+      .from("user_muscle_stats")
+      .select("id")
+      .eq("user_id", userId)
+      .single();
+
+    if (muscleStatsCheckError && muscleStatsCheckError.code !== "PGRST116") {
+      console.error("Error checking user muscle stats:", muscleStatsCheckError);
+      return;
+    }
+
+    // If the user doesn't have muscle stats, create a new entry
+    if (!existingMuscleStats) {
+      console.log("Creating user muscle stats...");
+      const { error: createMuscleStatsError } = await supabase.from("user_muscle_stats").insert({
+        user_id: userId,
+        chest: 0,
+        back: 0,
+        legs: 0,
+        shoulders: 0,
+        arms: 0,
+        core: 0,
+        cardio: 0,
+      });
+
+      if (createMuscleStatsError) {
+        console.error("Error creating user muscle stats:", createMuscleStatsError);
       }
     }
   } catch (error) {
@@ -426,52 +515,25 @@ async function checkAndUpdateLevel(userId: string) {
 
 // Function to get leaderboard data
 export async function getLeaderboardData(): Promise<any[]> {
-  const supabase = createClient()
+  const supabase = createClient();
 
   try {
-    // Get top users by XP
-    const { data: leaderboardData, error } = await supabase
+    // Fetch all users with relevant fields
+    const { data: users, error } = await supabase
       .from("users")
-      .select(
-        "id, email, level, xp, total_workouts, total_duration, streak_count, last_workout_date, avatar_color, avatar_accessory",
-      )
-      .order("xp", { ascending: false })
-      .limit(10)
+      .select("id, username, level, total_workouts, streak_count, avatar_color");
 
     if (error) {
-      console.error("Error fetching leaderboard data:", error)
-      return []
+      console.error("Error fetching leaderboard data:", error);
+      return [];
     }
 
-    type DbUser = {
-      id: string
-      email: string
-      level: number
-      xp: number
-      total_workouts: number
-      total_duration: number
-      streak_count: number
-      last_workout_date: string | null
-      avatar_color?: string | null
-      avatar_accessory?: string | null
-    }
+    // Log all fetched users
+    console.log("Fetched leaderboard users:", users);
 
-    // Format the data for the leaderboard
-    return leaderboardData.map((user: DbUser) => ({
-      id: user.id,
-      name: user.email.split("@")[0], // Use the part before @ as name
-      email: user.email,
-      level: user.level,
-      xp: user.xp,
-      totalWorkouts: user.total_workouts,
-      totalDuration: user.total_duration,
-      avatarColor: user.avatar_color || "blue",
-      avatarAccessory: user.avatar_accessory || "none",
-      streak: user.streak_count || 0,
-    }))
+    return users || [];
   } catch (error) {
-    console.error("Error getting leaderboard data:", error)
-    return []
+    console.error("Error fetching leaderboard data:", error);
+    return [];
   }
 }
-

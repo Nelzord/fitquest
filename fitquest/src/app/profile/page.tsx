@@ -5,43 +5,48 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/utils/supabase/client"
 
-// Mock user data
-const mockUser = {
-  email: "user@example.com",
-  level: 5,
-  xp: 450,
-  gold: 230,
-  totalWorkouts: 24,
-  totalDuration: 1260, // 21 hours
-  createdAt: new Date().toISOString(),
-}
+
 
 export default function ProfilePage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
 
-  // Check authentication
+  // Fetch user data from the database
   useEffect(() => {
-    const checkAuth = async () => {
+    const fetchUserData = async () => {
       try {
         const supabase = createClient()
-        const { data } = await supabase.auth.getUser()
 
-        if (!data.user) {
+        // Get the authenticated user
+        const { data: authData, error: authError } = await supabase.auth.getUser()
+        if (authError || !authData.user) {
           router.push("/login")
-        } else {
-          // In a real app, you would fetch user data from your database
-          setUser(mockUser)
-          setIsLoading(false)
+          return
         }
+
+        // Fetch user data from the database
+        const { data: userData, error: userError } = await supabase
+          .from("users") // Replace "users" with your actual table name
+          .select("*")
+          .eq("id", authData.user.id)
+          .single()
+
+        if (userError) {
+          console.error("Error fetching user data:", userError)
+          router.push("/login")
+          return
+        }
+
+        setUser(userData)
+        setIsLoading(false)
       } catch (error) {
-        console.error("Auth error:", error)
+        console.error("Error:", error)
         router.push("/login")
       }
     }
 
-    checkAuth()
+    fetchUserData()
   }, [router])
 
   // Format date
