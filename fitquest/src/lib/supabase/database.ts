@@ -501,14 +501,133 @@ async function updateMuscleGroupStats(exercises: WorkoutExercise[]) {
   console.log("updateMuscleGroupStats called with:", exercises)
 }
 
+//checks the last workout date and updates the streak accordingly
 async function updateStreak(userId: string) {
-  // Placeholder function
-  console.log("updateStreak called with:", userId)
+  const supabase = createClient();
+
+  try {
+    // Fetch the user's last workout date and current streak
+    const { data: user, error: fetchError } = await supabase
+      .from("users")
+      .select("last_workout_date, streak_count")
+      .eq("id", userId)
+      .single();
+
+    if (fetchError) {
+      console.error("Error fetching user data for streak update:", fetchError);
+      return;
+    }
+
+    if (!user) {
+      console.error("User not found for streak update");
+      return;
+    }
+
+    const { last_workout_date, streak_count } = user;
+
+    // Get the current date and calculate the difference in days
+    const today = new Date();
+    const lastWorkoutDate = last_workout_date ? new Date(last_workout_date) : null;
+
+    if (lastWorkoutDate) {
+      const timeDifference = today.getTime() - lastWorkoutDate.getTime();
+      const daysDifference = Math.floor(timeDifference / (1000 * 60 * 60 * 24));
+
+      if (daysDifference > 1) {
+        // If the last workout was more than a day ago, reset the streak
+        const { error: resetStreakError } = await supabase
+          .from("users")
+          .update({ streak_count: 0 })
+          .eq("id", userId);
+
+        if (resetStreakError) {
+          console.error("Error resetting streak:", resetStreakError);
+          return;
+        }
+
+        console.log(`User ${userId}'s streak has been reset to 0.`);
+      } else if (daysDifference === 1) {
+        // If the last workout was exactly one day ago, increment the streak
+        const { error: incrementStreakError } = await supabase
+          .from("users")
+          .update({ streak_count: streak_count + 1 })
+          .eq("id", userId);
+
+        if (incrementStreakError) {
+          console.error("Error incrementing streak:", incrementStreakError);
+          return;
+        }
+
+        console.log(`User ${userId}'s streak has been incremented to ${streak_count + 1}.`);
+      } else {
+        // If the last workout was today, do nothing
+        console.log(`User ${userId} already worked out today. Streak remains at ${streak_count}.`);
+      }
+    } else {
+      // If no last workout date exists, initialize the streak
+      const { error: initializeStreakError } = await supabase
+        .from("users")
+        .update({ streak_count: 1, last_workout_date: today.toISOString() })
+        .eq("id", userId);
+
+      if (initializeStreakError) {
+        console.error("Error initializing streak:", initializeStreakError);
+        return;
+      }
+
+      console.log(`User ${userId}'s streak has been initialized to 1.`);
+    }
+  } catch (error) {
+    console.error("Unexpected error in updateStreak:", error);
+  }
 }
 
 async function checkAndUpdateLevel(userId: string) {
-  // Placeholder function
-  console.log("checkAndUpdateLevel called with:", userId)
+  const supabase = createClient();
+
+  try {
+    // Fetch the user's current XP and level
+    const { data: user, error: fetchError } = await supabase
+      .from("users")
+      .select("xp, level")
+      .eq("id", userId)
+      .single();
+
+    if (fetchError) {
+      console.error("Error fetching user data for level check:", fetchError);
+      return;
+    }
+
+    if (!user) {
+      console.error("User not found for level check");
+      return;
+    }
+
+    const { xp, level } = user;
+
+    // Calculate the required XP for the next level
+    const nextLevelXp = level * 100;
+
+    // Check if the user qualifies for a level-up
+    if (xp >= nextLevelXp) {
+      const newLevel = level + 1;
+
+      // Update the user's level in the database
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({ level: newLevel })
+        .eq("id", userId);
+
+      if (updateError) {
+        console.error("Error updating user level:", updateError);
+        return;
+      }
+
+      console.log(`User ${userId} leveled up to level ${newLevel}`);
+    }
+  } catch (error) {
+    console.error("Unexpected error in checkAndUpdateLevel:", error);
+  }
 }
 
 // Add this function to the existing database.ts file
