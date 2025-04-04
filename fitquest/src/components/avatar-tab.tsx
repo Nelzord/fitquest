@@ -9,6 +9,9 @@ import { Trophy, Zap, Coins, Clock } from "lucide-react"
 import { RadarChart } from "@/components/radar-chart"
 import { createClient } from "@/utils/supabase/client"
 import type { User as UserType } from "@/types"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+
 
 
 const avatarColors = [
@@ -46,6 +49,8 @@ export function AvatarTab({ user }: AvatarTabProps) {
     accessory: "",
     outfit: "",
   })
+  const [username, setUsername] = useState<string>("")
+  const [isEditingUsername, setIsEditingUsername] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [muscleStats, setMuscleStats] = useState<any>(null)
 
@@ -86,6 +91,7 @@ export function AvatarTab({ user }: AvatarTabProps) {
         }
 
         setUserData(userData)
+        setUsername(userData.username || "Guest")
         setMuscleStats(muscleStats)
         setAvatarCustomization({
           color: userData.avatarColor || "blue",
@@ -101,6 +107,33 @@ export function AvatarTab({ user }: AvatarTabProps) {
 
     fetchUserData()
   }, [])
+
+  const handleUsernameChange = async () => {
+    if (!username.trim()) {
+      alert("Username cannot be empty.")
+      return
+    }
+
+    try {
+      const supabase = createClient()
+      const { error } = await supabase
+        .from("users")
+        .update({ username })
+        .eq("id", userData.id)
+
+      if (error) {
+        console.error("Error updating username:", error)
+        alert("Failed to update username.")
+        return
+      }
+
+      setIsEditingUsername(false)
+      alert("Username updated successfully!")
+    } catch (error) {
+      console.error("Error updating username:", error)
+      alert("An error occurred while updating the username.")
+    }
+  }
 
   if (isLoading) {
     return <p>Loading...</p>
@@ -148,10 +181,16 @@ export function AvatarTab({ user }: AvatarTabProps) {
         {/* User Stats Card */}
         <Card>
           <CardHeader>
-            <CardTitle>Level {userData.level}</CardTitle>
-            <CardDescription>
-              {xpToNextLevel} XP to level {userData.level + 1}
-            </CardDescription>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>
+                  <span className="text-2xl font-bold">{username === "Guest" ? "Guest" : username}</span>
+                </CardTitle>
+                <CardDescription>
+                  Level {userData.level} - {xpToNextLevel} XP to level {userData.level + 1}
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <Progress value={progress} className="h-2 mb-4" />
@@ -288,6 +327,22 @@ export function AvatarTab({ user }: AvatarTabProps) {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Username</label>
+                  <Input
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter your username"
+                    className="w-full"
+                  />
+                  <Button
+                    onClick={handleUsernameChange}
+                    className="bg-primary text-white mt-2"
+                  >
+                    Save Username
+                  </Button>
                 </div>
               </div>
             </div>

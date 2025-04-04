@@ -135,7 +135,7 @@ export function LeaderboardTab() {
                           </span>
                         </div>
                         <div>
-                          <p className="font-medium">{user.username || "Anonymous"}</p>
+                          <p className="font-medium">{user.username || "Guest"}</p>
                           <p className="text-xs text-muted-foreground">{getStatValue(user)}</p>
                         </div>
                       </div>
